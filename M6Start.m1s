@@ -1,0 +1,261 @@
+'https://www.cnczone.com/forums/mach-wizards-macros-amp-addons/325120-cnc.html
+'https://www.youtube.com/watch?v=26_N4uwRWmQ
+' https://www.machsupport.com/forum/index.php?topic=36417.0
+
+'Caution: this code is written for a tool changer with clamp open/closed signals to ensure the clamps 
+'are open/closed where they are supposed to be. If the there is a disgreement, a message box will appear. 
+'depending on the situation, you may have to a manual reset to stop the next move. Mach3 reset button will 
+'not work when dialoge box is open and acknowleging dialoge box will allow tool change to continue.  
+
+Sub Main()
+'-------------------------------------- code block to ensure machine is referenced before tool change
+code "M5"
+DoSpinStop()  'same as M5
+code "M9"
+'X-axis is not referenced
+	If GetOEMLED(807) Then
+		MsgBox ("X-axis no reference -> abort !!")
+		DoButton(3)
+		Exit Sub
+	End If
+	
+	'Y-axis is not referenced
+	If GetOEMLED(808) Then
+		MsgBox ("Y-axis no reference -> abort !!")
+		DoButton(3)
+		Exit Sub
+	End If
+
+	'Z-axis is not referenced
+	If GetOEMLED(809) Then
+		MsgBox ("Z-axis no reference -> abort !!")
+		DoButton(3)
+		Exit Sub
+	End If
+
+'------------------------------------------------------------------------------ Variables 
+DustDockX = GetOEMDRO (1226)    'X Position from DRO on ATC page. Value set by user.
+DustDockY = GetOEMDRO (1227)	'Y Position from DRO on ATC page. Value set by user.
+DustDockZ = GetOEMDRO (1228)    'Z Position from DRO on ATC page. Value set by user.
+DustDockPrep = GetOEMDRO (1223) 'Distance ahead X axis position where height drops before
+				'starting horizontal move into holder. From ATC page
+OldTool = GetCurrentTool 'Tool that is in spindle (Mach3 current tool number set in "tool" DRO) 
+XStart = GetOemDRO(178)'GetToolChangeStart. Position before tool change request to return to.
+YStart = GetOemDRO(179)'GetToolChangeStart. Position before tool change request to return to.
+ZStart = GetOemDRO(180)'GetToolChangeStart. Position before tool change request to return to.
+NewTool = GetSelectedTool() 'This grabs tool number from MIDI command line i.e. t2m6 will grab the 2
+Sleep (100)
+SetUserDRO (1225,NewTool)
+Sleep (100)
+MaxToolNum = 10      'Max number off tools for the changer
+ToolDown   = 2.425 		'Z Pos to Get or drop a tool 
+ToolUp     = 7.0    'Z Height to Rapid from tool to tool
+
+If NewTool = OldTool Then
+	Message ("Tool is loaded already")
+Exit Sub
+End If
+While NewTool > MaxToolNum
+NewTool = Question ("Enter New Tool Number up to " & MaxToolNum)
+Wend
+Code "G00 G53 Z" & ToolUp
+While IsMoving()
+Wend
+'-------------------------------------------------------- Dock dust collector
+
+code "G53 X" & (DustDockX + DustDockPrep) & " Y" & DustDockY 	'Position in front of dust boot
+While IsMoving()
+Wend
+code "G53 Z" & DustDockZ		'Z is Dust boot docking height from DRO 1226
+While IsMoving()
+Wend
+code "G53 X" & DustDockX & " Y" & DustDockY  'Position in dust boot
+While IsMoving()
+Wend
+Code "G00 G53 Z" & ToolUp
+While IsMoving()
+Wend
+
+
+'-------------------------------------------------------- end dust collector docking
+Call MovePosPrep(OldTool) 'Calls subroutine to positon tool ahead of tool holder
+While IsMoving()
+Wend
+Call MovePos(OldTool) 'Calls subroutine to positon tool in tool holder
+While IsMoving()
+Wend
+ActivateSignal(OUTPUT8) 'Turn On Draw bar to release the tool
+Sleep 2000
+GetOEMLED(1212) 
+If (GetOEMLED(1212) = False)Then 'Checks to see clamp is open before moving
+DeActivateSignal(OUTPUT8)
+MsgBox("Clamp took too long to open.Over 2 sec. Ensure Spindle Clamp is open before hitting OK") 
+ 'Exit Sub
+End If
+Sleep 500
+Code "G53 Z" & ToolUp
+Sleep 1000
+DeActivateSignal (OUTPUT8)
+'While IsMoving()
+'Wend
+'-----------------------------------------------------------Completion of tool drop off 
+Call MovePos(NewTool) 'goes to new tool position
+While IsMoving()
+Wend
+'-------------------------------------------------------------Start of tool pick up
+Code "G53 Z" & ToolDown
+ActivateSignal(OUTPUT8) 'Turn On Draw bar to release the tool
+Sleep 2000
+'-----------------
+GetOEMLED(1212) 
+If (GetOEMLED(1212) = False)Then 'Confirms clamp is open before moving down over tool
+DeActivateSignal(OUTPUT8)
+MsgBox("Clamp took too long to open.Over 2 sec. Ensure Spindle Clamp is open before hitting OK")
+ 'Exit Sub
+End If
+'------------------
+
+While IsMoving()
+Wend
+Sleep 500
+DeActivateSignal(OUTPUT8) 'Deactivates dool release solenoid
+Sleep 4000
+ActivateSignal(OUTPUT9) 'Activates tool insert solenoid
+Sleep 2000
+'----------------------
+GetOEMLED(1213)
+If (GetOEMLED(1213) = False)Then 'Confrirms clamp is closed prior to continuing 
+DeActivateSignal(OUTPUT9)
+MsgBox("Clamp took too long to close.Over 2 sec. Ensure Spindle Clamp is open before hitting OK")
+ 'Exit Sub
+End If
+
+DeActivateSignal(OUTPUT9)  
+Call MovePosPrep(NewTool) 'Move out of tool holder
+While IsMoving()
+Wend
+Code "G53 Z" & ToolUp
+While IsMoving()
+Wend
+'-------------------------------------------------------------End of tool change
+'-------------------------------------------------------- Dock dust collector pick up
+
+code "G53 X" & DustDockX & " Y" & DustDockY	'Position over dust boot
+While IsMoving()
+Wend
+code "G53 Z" & DustDockZ		'DustDockZ is Dust boot docking height
+While IsMoving()
+Wend
+code "G53 X" & (DustDockX + DustDockPrep) & " Y" & DustDockY  'Position in front of dust boot holder
+
+While IsMoving()
+Wend
+Code "G00 G53 Z" & ToolUp
+While IsMoving()
+Wend
+
+
+'-------------------------------------------------------- end dust collector pick up
+
+
+SetCurrentTool( NewTool ) 'Resets the current tool number in Mach3 to the new tool number. 
+Sleep (100)
+Code "G90"
+Code "G00 G53 Z" & ToolUp
+Code "G43 H" & NewTool 'provides tool offset from tool table
+Code "G00 X" & XStart & " Y" & YStart 'Move back to where the tool change was prompted
+Code "G00 Z" & ZStart ''Move Z back to where the tool change was prompted
+End Sub
+
+Sub MovePos(ByVal ToolNumber As Integer)
+
+Select Case ToolNumber
+       Case Is = 1
+         Xpos = 1.00
+         YPos = 8.25
+       Case Is = 2
+         Xpos = 1.00
+         YPos = 11.25
+       Case Is = 3
+         Xpos = 1.00
+         YPos = 14.25
+       Case Is = 4
+         Xpos = 1.00
+         YPos = 17.25
+       Case Is = 5
+         Xpos = 1.00
+         YPos = 20.25
+		 Case Is = 6
+         Xpos = 1.00
+         YPos = 23.25
+       Case Is = 7
+         Xpos = 1.00
+         YPos = 26.25
+       Case Is = 8
+         Xpos = 1.00
+         YPos = 29.25
+		Case Is = 9
+         Xpos = 1.00
+         YPos = 32.25
+       Case Is = 10
+         Xpos = 1.00
+         YPos = 35.25
+
+End Select
+
+Code "G53 X" & XPos & " Y" & YPos
+End Sub
+
+Sub MovePosPrep(ByVal ToolNumber As Integer)
+' This is the position of the tool in front of tool holder 
+Select Case ToolNumber
+		Case Is = 1
+		Xpos = 2
+		YPos = 8.25
+		ZPos = 2.425 
+		Case Is = 2
+		Xpos = 2
+		YPos = 11.25
+		ZPos = 2.425
+		Case Is = 3
+		Xpos = 2
+		YPos = 14.25
+		ZPos = 2.425
+		Case Is = 4
+		Xpos = 2
+		YPos = 17.25
+		ZPos = 2.425
+		Case Is = 5
+		Xpos = 2
+		YPos = 20.25
+		ZPos = 2.425
+		Case Is = 6
+		Xpos = 2
+		YPos = 23.25
+		ZPos = 2.425
+		Case Is = 7
+		Xpos = 2
+		YPos = 26.25
+		ZPos = 2.425
+		Case Is = 8
+		Xpos = 2
+		YPos = 29.25
+		ZPos = 2.425
+		Case Is = 9
+		Xpos = 2
+		YPos = 32.25
+		ZPos = 2.425
+		Case Is = 10
+       	Xpos = 2
+       	YPos = 35.25		
+		ZPos = 2.425
+End Select
+
+Code "G53 X" & XPos & " Y" & YPos
+Code "G53 Z" & ZPos
+End Sub
+
+
+
+
+Main
