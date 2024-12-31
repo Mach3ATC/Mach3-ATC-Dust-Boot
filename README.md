@@ -1,4 +1,4 @@
-I have just completed a Jianken JGL-80 2.2KW ATC upgrade with dockable dust boot. I used this and other websites to give me a great base to start with. One of the issues was the information was fragmented or contained small errors in code. I want to give back to the community by making my entire package available for those that want to embark on a similar adventure. The Mach3 files may have a .pp file extension but are actually Cyprus Basic not pascal. The contents of the .pp files are pasted in to the appropriate button in Mach3 if required.
+I have just completed a Jianken JGL-80 2.2KW ATC upgrade with dockable dust boot. I used this and other websites to give me a great base to start with. One of the issues was the information was fragmented or contained small errors in code. I want to give back to the community by making my entire package available for those that want to embark on a similar adventure. The Mach3 files may have a .pp file extension but are actually Cyprus Basic not pascal. The contents of the .pp files are posted in to the appropriate button in Mach3 if required.
 
 This includes:
 1. M6 tool change macro;
