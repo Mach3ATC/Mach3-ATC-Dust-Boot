@@ -80,7 +80,7 @@ PressureSensor = analogRead(A0);
   lcd_1.print ((LCDPSI)*0.00689476);// converts PSI to Mpa)
  
   //Loop for Thermistor  
-   int raw = analogRead(ThermistorPin); Raw reading
+   int raw = analogRead(ThermistorPin); // Raw reading
    float filtered1 = adcFilter1.filter(raw); // uses EWMA filter 
 Vo = filtered1; //Takes the filtered value to use in the formula
  //Vo = analogRead(ThermistorPin); Old code before filter
